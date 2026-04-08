@@ -6,8 +6,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 import numpy as np
 import pandas as pd
-import sklearn
-st.write("Sklearn version:", sklearn.__version__)
+
 # -------------------- CONFIG --------------------
 st.set_page_config(page_title="AI Health Predictor", layout="wide")
 

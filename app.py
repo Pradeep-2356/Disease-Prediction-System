@@ -4,275 +4,319 @@ import streamlit as st
 from streamlit_option_menu import option_menu
 import google.generativeai as genai
 from dotenv import load_dotenv
+import numpy as np
+import pandas as pd
 
-# -------------------- Load ENV --------------------
+# -------------------- CONFIG --------------------
+st.set_page_config(page_title="AI Health Predictor", layout="wide")
+
+def save_history(data):
+    file = "history.csv"
+
+    # Ensure consistent columns
+    required_cols = ["Type", "Result"]
+
+    for col in required_cols:
+        if col not in data:
+            data[col] = None
+
+    new_df = pd.DataFrame([data])
+
+    if os.path.exists(file):
+        old_df = pd.read_csv(file)
+        new_df = pd.concat([old_df, new_df], ignore_index=True)
+
+    new_df.to_csv(file, index=False)
+
+st.markdown("""
+<style>
+    .main {
+        background-color: #0e1117;
+        color: white;
+    }
+
+    .stButton>button {
+        background-color: #4CAF50;
+        color: white;
+        border-radius: 10px;
+        height: 3em;
+        width: 100%;
+    }
+
+    .stSlider label {
+        color: #ddd;
+    }
+
+    .css-1d391kg {
+        background-color: #111;
+    }
+
+    h1, h2, h3 {
+        text-align: center;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# -------------------- SIDEBAR --------------------
+with st.sidebar:
+    selected = option_menu(
+    "Menu",
+    ["Home", "Diabetes", "Heart", "Common Disease", "History"],
+    icons=["house","activity","heart","stethoscope","clock"]
+    )
+
+# =====================================================
+# 🏠 HOME
+# =====================================================
+if selected == "Home":
+    st.markdown("""
+    <h1>🧑‍⚕️ AI Health Prediction System</h1>
+    <p style='text-align:center; font-size:18px;'>
+    Predict diseases using Machine Learning & get AI-powered health advice
+    </p>
+    """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("### 🩺 Diabetes Prediction")
+        st.write("Check diabetes risk using medical parameters")
+
+    with col2:
+        st.markdown("### ❤️ Heart Disease")
+        st.write("Analyze heart disease risk factors")
+
+    with col3:
+        st.markdown("### 🤒 General Disease")
+        st.write("Predict disease based on symptoms")
+
+    st.markdown("---")
+
+    st.info("⚠️ This system is for educational purposes only. Consult a doctor for medical advice.")
+
+# -------------------- HEADER --------------------
+st.markdown("""
+<h1 style='text-align: center; color: #4CAF50;'>🧑‍⚕️ AI Health Prediction System</h1>
+<p style='text-align: center;'>Predict diseases & get AI-powered advice</p>
+""", unsafe_allow_html=True)
+
+# -------------------- ENV --------------------
 # load_dotenv()
 # GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # For deployment
 API_KEY = st.secrets["GOOGLE_API_KEY"]
 
-# -------------------- Configure Gemini --------------------
 genai.configure(api_key=API_KEY)
 model_gen = genai.GenerativeModel("gemini-flash-latest")
 
-# -------------------- Safe AI Function --------------------
 def get_ai_response(prompt):
     try:
-       response = model_gen.generate_content(prompt)
-       return response.text
-    except Exception as e:
-        return f"❌ AI Error: {str(e)}"
+        return model_gen.generate_content(prompt).text
+    except:
+        return "AI Error"
 
-# -------------------- Page Config --------------------
-st.set_page_config(
-    page_title="Health Predictor",
-    layout="wide",
-    page_icon="🧑‍⚕️"
-)
-
-# -------------------- Load Models --------------------
+# -------------------- LOAD MODELS --------------------
 working_dir = os.path.dirname(os.path.abspath(__file__))
-diabetes_model = pickle.load(open(os.path.join(working_dir, 'saved_models', 'diabetes_model.sav'), 'rb'))
-heart_model = pickle.load(open(os.path.join(working_dir, 'saved_models', 'rf_classifier.pkl'), 'rb'))
-scaler = pickle.load(open(os.path.join(working_dir, 'saved_models', 'scaler.pkl'), 'rb'))
 
-# -------------------- Heart Predict Function --------------------
-def predict(model, scaler, male, age, currentSmoker, cigsPerDay, BPMeds,
-            prevalentStroke, prevalentHyp, diabetes, totChol, sysBP,
-            diaBP, BMI, heartRate, glucose):
+diabetes_model = pickle.load(open(os.path.join(working_dir, 'saved_models/diabetes_model.sav'), 'rb'))
+heart_model = pickle.load(open(os.path.join(working_dir, 'saved_models/rf_classifier.pkl'), 'rb'))
+scaler = pickle.load(open(os.path.join(working_dir, 'saved_models/scaler.pkl'), 'rb'))
 
-    male = 1 if male == 'male' else 0
-    currentSmoker = 1 if currentSmoker == 'yes' else 0
-    BPMeds = 1 if BPMeds == 'yes' else 0
-    prevalentStroke = 1 if prevalentStroke == 'yes' else 0
-    prevalentHyp = 1 if prevalentHyp == 'yes' else 0
-    diabetes = 1 if diabetes == 'yes' else 0
+disease_model = pickle.load(open(os.path.join(working_dir, 'saved_models/disease_model.pkl'), 'rb'))
+label_encoder = pickle.load(open(os.path.join(working_dir, 'saved_models/label_encoder.pkl'), 'rb'))
+symptoms_list = pickle.load(open(os.path.join(working_dir, 'saved_models/symptoms.pkl'), 'rb'))
 
-    data = [[male, age, currentSmoker, cigsPerDay, BPMeds,
-             prevalentStroke, prevalentHyp, diabetes, totChol,
-             sysBP, diaBP, BMI, heartRate, glucose]]
+# =====================================================
+# 📜 HISTORY
+# =====================================================
+if selected == "History":
+    st.subheader("📜 Prediction History")
 
-    data = scaler.transform(data)
-    return model.predict(data)[0]
+    file = "history.csv"
 
-# -------------------- Normal Ranges --------------------
-NORMAL_RANGES = {
-    "Glucose": (70, 140),
-    "BloodPressure": (80, 120),
-    "BMI": (18.5, 24.9),
-    "Cholesterol": (125, 200),
-    "SysBP": (90, 120),
-    "DiaBP": (60, 80),
-    "HeartRate": (60, 100),
-}
+    if os.path.exists(file):
+        df = pd.read_csv(file)
+        st.dataframe(df, use_container_width=True)
 
-def check_normal_ranges(values):
-    abnormal = []
-    for key, val in values.items():
-        if key in NORMAL_RANGES:
-            low, high = NORMAL_RANGES[key]
-            if val < low or val > high:
-                abnormal.append(f"{key} ({val})")
-    return abnormal
+        col1, col2 = st.columns(2)
 
-# -------------------- Sidebar --------------------
-with st.sidebar:
-    selected = option_menu(
-        'Disease Prediction System',
-        ['Diabetes Prediction', 'Heart Disease Prediction'],
-        menu_icon='hospital-fill',
-        icons=['activity', 'heart'],
-        default_index=0
-    )
+        with col1:
+            if st.button("🗑️ Clear History"):
+                os.remove(file)
+                st.success("History cleared!")
+                st.experimental_rerun()
 
-## =========================================================
-# 🩺 Diabetes Prediction
-# =========================================================
-if selected == 'Diabetes Prediction':
-    st.title('🩺 Diabetes Prediction using ML')
+        with col2:
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button("⬇️ Download History", csv, "history.csv")
+
+    else:
+        st.warning("No history found")
+
+
+# =====================================================
+# 🩺 DIABETES
+# =====================================================
+if selected == "Diabetes":
+    st.subheader("🩺 Diabetes Prediction")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        Glucose = st.slider("Glucose", 70, 300)
+        BMI = st.slider("BMI", 15.0, 50.0)
+    with col2:
+        Age = st.slider("Age", 1, 100)
+
+    if st.button("Predict"):
+        with st.spinner("Analyzing..."):
+            data = [[0, Glucose, 80, 20, 80, BMI, 0.5, Age]]
+
+            proba = diabetes_model.predict_proba(data)[0]
+            pred = proba.argmax()
+            confidence = round(max(proba)*100,2)
+
+            st.info(f"Confidence: {confidence}%")
+
+            if pred == 1:
+                st.error("⚠️ Risk of Diabetes")
+                prompt = f"Glucose {Glucose}, BMI {BMI}, Age {Age}. Give diet & precautions"
+            else:
+                st.success("✅ Healthy")
+
+                prompt = "Give healthy lifestyle tips"
+
+            save_history({"Type":"Diabetes","Result":pred})
+
+            with st.expander("🤖 AI Advice"):
+                st.write(get_ai_response(prompt))
+
+# =====================================================
+# ❤️ HEART
+# =====================================================
+if selected == "Heart":
+    st.subheader("❤️ Heart Disease Prediction")
 
     col1, col2, col3 = st.columns(3)
-
-    # Number of Pregnancies (0-20)
+    
     with col1:
-        Pregnancies = st.selectbox(
-            'Number of Pregnancies',
-            list(range(0, 21))
-        )
+        male = st.selectbox("Gender", ["male", "female"])
+        male = 1 if male == "male" else 0
 
-    # Glucose Level (70-300, step 5)
+        age = st.slider("Age", 20, 100)
+
+        currentSmoker = st.selectbox("Current Smoker", ["yes", "no"])
+        currentSmoker = 1 if currentSmoker == "yes" else 0
+
+        cigsPerDay = st.slider("Cigarettes per Day", 0, 50)
+
     with col2:
-        Glucose = st.selectbox(
-            'Glucose Level',
-            list(range(70, 301, 5))
-        )
+        BPMeds = st.selectbox("BP Medication", ["yes", "no"])
+        BPMeds = 1 if BPMeds == "yes" else 0
 
-    # Blood Pressure (80-200, step 5)
+        prevalentStroke = st.selectbox("Stroke History", ["yes", "no"])
+        prevalentStroke = 1 if prevalentStroke == "yes" else 0
+
+        prevalentHyp = st.selectbox("Hypertension", ["yes", "no"])
+        prevalentHyp = 1 if prevalentHyp == "yes" else 0
+
+        diabetes = st.selectbox("Diabetes", ["yes", "no"])
+        diabetes = 1 if diabetes == "yes" else 0
+
     with col3:
-        BloodPressure = st.selectbox(
-            'Blood Pressure',
-            list(range(80, 201, 5))
-        )
+        chol = st.slider("Cholesterol", 100, 400)
+        sysBP = st.slider("Systolic BP", 80, 200)
+        diaBP = st.slider("Diastolic BP", 50, 120)
+        BMI = st.slider("BMI", 15.0, 40.0)
+        heartRate = st.slider("Heart Rate", 40, 150)
+        glucose = st.slider("Glucose", 50, 300)
 
-    # Skin Thickness (0-100, step 5)
-    with col1:
-        SkinThickness = st.selectbox(
-            'Skin Thickness',
-            list(range(0, 101, 5))
-        )
+    if st.button("Predict Heart"):
+        with st.spinner("Analyzing..."):
 
-    # Insulin Level (0-900, step 25)
-    with col2:
-        Insulin = st.selectbox(
-            'Insulin Level',
-            list(range(0, 901, 25))
-        )
+            # ✅ Build input dictionary
+            input_dict = {
+                "male": male,
+                "age": age,
+                "currentSmoker": currentSmoker,
+                "cigsPerDay": cigsPerDay,
+                "BPMeds": BPMeds,
+                "prevalentStroke": prevalentStroke,
+                "prevalentHyp": prevalentHyp,
+                "diabetes": diabetes,
+                "totChol": chol,
+                "sysBP": sysBP,
+                "diaBP": diaBP,
+                "BMI": BMI,
+                "heartRate": heartRate,
+                "glucose": glucose
+            }
 
-    # BMI (10.0-70.0, step 0.5)
-    with col3:
-        BMI = st.selectbox(
-            'BMI',
-            [round(x * 0.5, 1) for x in range(20, 141)]  # 10.0 to 70.0
-        )
+            # ✅ Load correct feature order (VERY IMPORTANT)
+            try:
+                heart_features = pickle.load(open("saved_models/heart_features.pkl", "rb"))
+            except:
+                st.error("❌ heart_features.pkl not found. Please retrain model.")
+                st.stop()
 
-    # Diabetes Pedigree Function (0.0-3.0, step 0.1)
-    with col1:
-        DiabetesPedigreeFunction = st.selectbox(
-            'Diabetes Pedigree Function',
-            [round(x * 0.1, 1) for x in range(0, 31)]
-        )
+            # ✅ Arrange data in correct order
+            input_data = [input_dict[col] for col in heart_features]
+            input_data = np.array(input_data).reshape(1, -1)
 
-    # Age (1-120)
-    with col2:
-        Age = st.selectbox(
-            'Age',
-            list(range(1, 121))
-        )
+            # ✅ Scale
+            input_data = scaler.transform(input_data)
 
-    if st.button('Diabetes Test Result'):
-        user_input = [Pregnancies, Glucose, BloodPressure, SkinThickness,
-                      Insulin, BMI, DiabetesPedigreeFunction, Age]
+            # ✅ Predict
+            result = heart_model.predict(input_data)[0]
 
-        diab_prediction = diabetes_model.predict([user_input])
+            # ✅ Confidence (if available)
+            try:
+                proba = heart_model.predict_proba(input_data)[0]
+                confidence = round(max(proba) * 100, 2)
+                st.info(f"Confidence: {confidence}%")
+            except:
+                pass
 
-        # Check normal ranges
-        abnormal_params = check_normal_ranges({
-            "Glucose": Glucose,
-            "BloodPressure": BloodPressure,
-            "BMI": BMI
-        })
+            # ✅ Output
+            if result == 1:
+                st.error("⚠️ Risk of Heart Disease")
+                prompt = f"Patient risk detected. Age {age}, BP {sysBP}/{diaBP}, Cholesterol {chol}. Give precautions."
+            else:
+                st.success("✅ Healthy")
+                prompt = "Give heart fitness and lifestyle advice."
 
-        if diab_prediction[0] == 1 or abnormal_params:
-            st.error('⚠️ The person may have diabetes or abnormal values detected')
-            if abnormal_params:
-                st.warning(f"⚠️ Abnormal values: {', '.join(abnormal_params)}")
-            prompt = f"""
-            Patient has diabetes or abnormal values: {', '.join(abnormal_params)}.
-            Glucose: {Glucose}, BMI: {BMI}, Age: {Age}
+            # ✅ Save history
+            save_history({"Type": "Heart", "Result": result})
 
-            Give:
-            - Diet plan
-            - Precautions
-            - Lifestyle changes
-            """
+            # ✅ AI Advice
+            with st.expander("🤖 AI Advice"):
+                st.write(get_ai_response(prompt))
+
+# =====================================================
+# 🤒 COMMON DISEASE
+# =====================================================
+if selected == "Common Disease":
+    st.subheader("🤒 Disease Prediction")
+
+    selected_symptoms = st.multiselect("Select Symptoms", symptoms_list)
+
+    if st.button("Predict Disease"):
+        if not selected_symptoms:
+            st.warning("Select symptoms")
         else:
-            st.success('✅ The person is healthy')
-            prompt = f"""
-            Patient is healthy.
+            vector = [1 if s in selected_symptoms else 0 for s in symptoms_list]
+            vector = np.array(vector).reshape(1,-1)
 
-            Give:
-            - Health tips
-            - Diet plan
-            - Exercise routine
-            """
+            pred = disease_model.predict(vector)
+            disease = label_encoder.inverse_transform(pred)[0]
 
-        st.subheader("🤖 AI Response")
-        st.write(get_ai_response(prompt))
-        st.warning("⚠️ AI advice only. Consult a doctor.")
-# =========================================================
-# ❤️ Heart Disease Prediction
-# =========================================================
-if selected == 'Heart Disease Prediction':
-    st.title('❤️ Heart Disease Prediction')
+            st.success(f"Predicted: {disease}")
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        male = st.selectbox('Gender', ['male', 'female'])
-    with col2:
-        age = st.number_input('Age', 1, 120)
-    with col3:
-        currentSmoker = st.selectbox('Current Smoker', ['yes', 'no'])
+            save_history({"Type":"Common","Result":disease})
 
-    with col1:
-        cigsPerDay = st.number_input('Cigarettes Per Day', 0.0, 50.0)
-    with col2:
-        BPMeds = st.selectbox('BP Medicines', ['yes', 'no'])
-    with col3:
-        prevalentStroke = st.selectbox('Stroke History', ['yes', 'no'])
+            with st.expander("🤖 AI Advice"):
+                st.write(get_ai_response(f"Symptoms: {selected_symptoms}, Disease: {disease}"))
 
-    with col1:
-        prevalentHyp = st.selectbox('Hypertension', ['yes', 'no'])
-    with col2:
-        diabetes = st.selectbox('Diabetes', ['yes', 'no'])
-    with col3:
-        totChol = st.number_input('Cholesterol', 100.0, 600.0)
-
-    with col1:
-        sysBP = st.number_input('Systolic BP', 80.0, 250.0)
-    with col2:
-        diaBP = st.number_input('Diastolic BP', 50.0, 150.0)
-    with col3:
-        BMI = st.number_input('BMI', 10.0, 50.0)
-
-    with col1:
-        heartRate = st.number_input('Heart Rate', 40.0, 200.0)
-    with col2:
-        glucose = st.number_input('Glucose', 50.0, 400.0)
-
-    if st.button('Heart Test Result'):
-        result = predict(
-            heart_model, scaler,
-            male, age, currentSmoker, cigsPerDay,
-            BPMeds, prevalentStroke, prevalentHyp,
-            diabetes, totChol, sysBP, diaBP,
-            BMI, heartRate, glucose
-        )
-
-        # Check normal ranges
-        abnormal_params = check_normal_ranges({
-            "SysBP": sysBP,
-            "DiaBP": diaBP,
-            "Cholesterol": totChol,
-            "BMI": BMI,
-            "HeartRate": heartRate,
-            "Glucose": glucose
-        })
-
-        if result == 1 or abnormal_params:
-            st.error("⚠️ The patient may have heart disease or abnormal values")
-            if abnormal_params:
-                st.warning(f"⚠️ Abnormal values: {', '.join(abnormal_params)}")
-            prompt = f"""
-            Patient details with abnormal values: {', '.join(abnormal_params)}.
-            Age: {age}, BP: {sysBP}/{diaBP}, Cholesterol: {totChol}
-
-            Give:
-            - Diet plan
-            - Precautions
-            - Lifestyle changes
-            """
-        else:
-            st.success("✅ No Heart Disease")
-            prompt = f"""
-            Patient is healthy.
-
-            Give:
-            - Health tips
-            - Diet plan
-            - Exercise routine
-            """
-
-        st.subheader("🤖 AI Response")
-        st.write(get_ai_response(prompt))
-        st.warning("⚠️ AI advice only. Not a substitute for doctor.")

@@ -103,12 +103,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------- ENV --------------------
-load_dotenv()
-API_KEY = os.getenv("GOOGLE_API_KEY")
+# load_dotenv()
+# GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-if not API_KEY:
-    st.error("Missing GOOGLE_API_KEY")
-    st.stop()
+# For deployment
+API_KEY = st.secrets["GOOGLE_API_KEY"]
 
 genai.configure(api_key=API_KEY)
 model_gen = genai.GenerativeModel("gemini-flash-latest")

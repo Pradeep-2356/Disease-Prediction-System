@@ -70,7 +70,7 @@ with st.sidebar:
 # =====================================================
 if selected == "Home":
     st.markdown("""
-    <h1>🧑‍⚕️ AI Health Prediction System</h1>
+    <h1>AI Health Prediction System</h1>
     <p style='text-align:center; font-size:18px;'>
     Predict diseases using Machine Learning & get AI-powered health advice
     </p>

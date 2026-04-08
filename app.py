@@ -98,7 +98,7 @@ if selected == "Home":
 
 # -------------------- HEADER --------------------
 st.markdown("""
-<h1 style='text-align: center; color: #4CAF50;'>🧑‍⚕️ AI Health Prediction System</h1>
+<h1 style='text-align: center; color: #4CAF50;'>AI Health Prediction System</h1>
 <p style='text-align: center;'>Predict diseases & get AI-powered advice</p>
 """, unsafe_allow_html=True)
 
@@ -173,26 +173,32 @@ if selected == "Diabetes":
 
     if st.button("Predict"):
         with st.spinner("Analyzing..."):
-            data = [[0, Glucose, 80, 20, 80, BMI, 0.5, Age]]
+
+            data = pd.DataFrame([{
+                "Pregnancies": 0,
+                "Glucose": Glucose,
+                "BloodPressure": 80,
+                "SkinThickness": 20,
+                "Insulin": 80,
+                "BMI": BMI,
+                "DiabetesPedigreeFunction": 0.5,
+                "Age": Age
+            }])
+
+            data = data.fillna(0)
 
             proba = diabetes_model.predict_proba(data)[0]
             pred = proba.argmax()
-            confidence = round(max(proba)*100,2)
+            confidence = round(max(proba) * 100, 2)
 
             st.info(f"Confidence: {confidence}%")
 
             if pred == 1:
                 st.error("⚠️ Risk of Diabetes")
-                prompt = f"Glucose {Glucose}, BMI {BMI}, Age {Age}. Give diet & precautions"
             else:
                 st.success("✅ Healthy")
 
-                prompt = "Give healthy lifestyle tips"
-
-            save_history({"Type":"Diabetes","Result":pred})
-
-            with st.expander("🤖 AI Advice"):
-                st.write(get_ai_response(prompt))
+            save_history({"Type": "Diabetes", "Result": int(pred)})
 
 # =====================================================
 # ❤️ HEART
@@ -292,7 +298,7 @@ if selected == "Heart":
             save_history({"Type": "Heart", "Result": result})
 
             # ✅ AI Advice
-            with st.expander("🤖 AI Advice"):
+            with st.expander("AI Advice"):
                 st.write(get_ai_response(prompt))
 
 # =====================================================
@@ -317,6 +323,6 @@ if selected == "Common Disease":
 
             save_history({"Type":"Common","Result":disease})
 
-            with st.expander("🤖 AI Advice"):
+            with st.expander("AI Advice"):
                 st.write(get_ai_response(f"Symptoms: {selected_symptoms}, Disease: {disease}"))
 
